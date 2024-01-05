@@ -49,7 +49,8 @@ func serve(args []string) error {
 		fmt.Fprintln(os.Stderr, "Unexpected arguments:", flag.Args())
 		flag.Usage()
 	}
-
+	hub := newHub()
+	go hub.run()
 	// Register handler
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
@@ -138,7 +139,9 @@ func serve(args []string) error {
 			log.Printf("Please open %s on your browser.\n", u)
 		}
 	}
-
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(hub, w, r)
+	})
 	return http.ListenAndServe(*addr, nil)
 }
 
