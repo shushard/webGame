@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	engine "example.com/game/internal"
 )
 
 const reloadScript = `
@@ -26,9 +28,18 @@ const reloadScript = `
 </script>
 `
 
-const defaultAddr = "localhost:8080"
+const defaultAddr = "localhost:3000"
 
 var waitCh = make(chan struct{})
+
+var world *engine.World
+
+func init() {
+	world = &engine.World{
+		Replica: false,
+		Units:   map[string]*engine.Unit{},
+	}
+}
 
 func serve(args []string) error {
 	// Parse flags
@@ -49,6 +60,7 @@ func serve(args []string) error {
 		fmt.Fprintln(os.Stderr, "Unexpected arguments:", flag.Args())
 		flag.Usage()
 	}
+	go world.Evolve()
 	hub := newHub()
 	go hub.run()
 	// Register handler
@@ -140,7 +152,7 @@ func serve(args []string) error {
 		}
 	}
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		serveWs(hub, w, r)
+		serveWs(hub, world, w, r)
 	})
 	return http.ListenAndServe(*addr, nil)
 }
