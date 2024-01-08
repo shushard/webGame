@@ -1,17 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"log"
 	"os"
 	"sort"
+	"time"
 
 	"example.com/game/internal"
 	"github.com/golang/protobuf/proto"
-	"github.com/gorilla/websocket"
 	e "github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"nhooyr.io/websocket"
 )
 
 type Config struct {
@@ -135,12 +137,20 @@ func main() {
 	go world.Evolve()
 
 	host := getEnv("HOST", "localhost")
-	c, _, _ := websocket.DefaultDialer.Dial("ws://"+host+":3000/ws", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	c, _, err := websocket.Dial(ctx, "ws://"+host+":3000/ws", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer c.Close(websocket.StatusInternalError, "the sky is falling")
+
 	go func(c *websocket.Conn) {
-		defer c.Close()
+		defer c.Close(websocket.StatusInternalError, "the sky is falling")
 
 		for {
-			_, message, err := c.ReadMessage()
+			_, message, err := c.Read(context.Background())
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -280,7 +290,11 @@ func handleKeyboard(c *websocket.Conn) {
 				log.Println(err)
 				return
 			}
-			c.WriteMessage(websocket.BinaryMessage, message)
+			err = c.Write(context.Background(), websocket.MessageBinary, message)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 		}
 	} else {
 		if unit.Action != internal.UnitActionIdle {
@@ -295,7 +309,11 @@ func handleKeyboard(c *websocket.Conn) {
 				log.Println(err)
 				return
 			}
-			c.WriteMessage(websocket.BinaryMessage, message)
+			err = c.Write(context.Background(), websocket.MessageBinary, message)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 			lastKey = -1
 		}
 	}

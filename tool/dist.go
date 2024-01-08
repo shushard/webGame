@@ -23,6 +23,7 @@ var distFiles = []string{
 
 var distDirs = []string{
 	"asset",
+	"sprites",
 }
 
 // isDist reports whether the name is part of the distribution.

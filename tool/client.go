@@ -1,20 +1,21 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"time"
 
 	engine "example.com/game/internal"
 	"github.com/golang/protobuf/proto"
-	"github.com/gorilla/websocket"
+	"nhooyr.io/websocket"
 )
 
 const (
 	// Time allowed to write a message to the peer.
 	writeWait = 10 * time.Second
 
-	// // Time allowed to read the next pong message from the peer.
+	// Time allowed to read the next pong message from the peer.
 	pongWait = 60 * time.Second
 
 	// Send pings to peer with this period. Must be less than pongWait.
@@ -24,11 +25,6 @@ const (
 	maxMessageSize = 512
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
 	id   string
@@ -37,11 +33,6 @@ type Client struct {
 	send chan []byte
 }
 
-// readPump pumps messages from the websocket connection to the hub.
-//
-// The application runs readPump in a per-connection goroutine. The application
-// ensures that there is at most one reader on a connection by executing all
-// reads from this goroutine.
 func (c *Client) readPump(world *engine.World) {
 	defer func() {
 		event := &engine.Event{
@@ -58,15 +49,16 @@ func (c *Client) readPump(world *engine.World) {
 		c.hub.broadcast <- message
 
 		c.hub.unregister <- c
-		c.conn.Close()
+		c.conn.Close(websocket.StatusNormalClosure, "")
 	}()
-	c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+
 	for {
-		_, message, err := c.conn.ReadMessage()
+		ctx, cancel := context.WithTimeout(context.Background(), pongWait)
+		defer cancel()
+
+		_, message, err := c.conn.Read(ctx)
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			if websocket.CloseStatus(err) == websocket.StatusGoingAway || websocket.CloseStatus(err) == websocket.StatusAbnormalClosure {
 				log.Printf("error: %v", err)
 			}
 			break
@@ -90,36 +82,40 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		c.conn.Close()
+		c.conn.Close(websocket.StatusNormalClosure, "")
 	}()
 	for {
 		select {
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// The hub closed the channel.
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				c.conn.Close(websocket.StatusNormalClosure, "")
 				return
 			}
 
-			w, err := c.conn.NextWriter(websocket.BinaryMessage)
+			ctx, cancel := context.WithTimeout(context.Background(), writeWait)
+			defer cancel()
+
+			err := c.conn.Write(ctx, websocket.MessageBinary, message)
 			if err != nil {
 				return
 			}
-			w.Write(message)
 
 			// Add queued chat messages to the current websocket message.
 			n := len(c.send)
 			for i := 0; i < n; i++ {
-				w.Write(<-c.send)
+				err = c.conn.Write(ctx, websocket.MessageBinary, <-c.send)
+				if err != nil {
+					return
+				}
 			}
 
-			if err := w.Close(); err != nil {
-				return
-			}
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), writeWait)
+			defer cancel()
+
+			err := c.conn.Ping(ctx)
+			if err != nil {
 				return
 			}
 		}
@@ -128,7 +124,7 @@ func (c *Client) writePump() {
 
 // serveWs handles websocket requests from the peer.
 func serveWs(hub *Hub, world *engine.World, w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
@@ -152,7 +148,10 @@ func serveWs(hub *Hub, world *engine.World, w http.ResponseWriter, r *http.Reque
 		//todo: remove unit
 		log.Println(err)
 	}
-	conn.WriteMessage(websocket.BinaryMessage, message)
+	err = conn.Write(context.Background(), websocket.MessageBinary, message)
+	if err != nil {
+		log.Println(err)
+	}
 
 	unit := world.Units[id]
 	event = &engine.Event{

@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"image/png"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
-
-	"github.com/markbates/pkger"
 )
 
 type Frames struct {
@@ -24,40 +22,66 @@ func LoadResources() (map[string]Frames, error) {
 	cfgs := map[string]image.Config{}
 	sprites := map[string]Frames{}
 
-	prefix := "/resources/sprites"
-	err := pkger.Walk(prefix, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() == false {
-			filename := prefix + "/" + info.Name()
-			fileBytes, err := readFile(filename)
-			if err != nil {
-				return err
-			}
+	requiredFiles := []string{
+		"big_demon_idle_anim_f0.png",
+		"big_demon_idle_anim_f1.png",
+		"big_demon_idle_anim_f2.png",
+		"big_demon_idle_anim_f3.png",
+		"big_demon_run_anim_f0.png",
+		"big_demon_run_anim_f1.png",
+		"big_demon_run_anim_f2.png",
+		"big_demon_run_anim_f3.png",
+		"big_zombie_idle_anim_f0.png",
+		"big_zombie_idle_anim_f1.png",
+		"big_zombie_idle_anim_f2.png",
+		"big_zombie_idle_anim_f3.png",
+		"big_zombie_run_anim_f0.png",
+		"big_zombie_run_anim_f1.png",
+		"big_zombie_run_anim_f2.png",
+		"big_zombie_run_anim_f3.png",
+		"elf_f_idle_anim_f0.png",
+		"elf_f_idle_anim_f1.png",
+		"elf_f_idle_anim_f2.png",
+		"elf_f_idle_anim_f3.png",
+		"elf_f_run_anim_f0.png",
+		"elf_f_run_anim_f1.png",
+		"elf_f_run_anim_f2.png",
+		"elf_f_run_anim_f3.png",
+		"floor_1.png",
+		"floor_2.png",
+		"floor_3.png",
+		"floor_4.png",
+		"floor_5.png",
+		"floor_6.png",
+		"floor_7.png",
+		"floor_8.png",
+	}
 
-			img, _, err := image.Decode(bytes.NewReader(fileBytes))
-			if err != nil {
-				return err
-			}
+	for _, fileName := range requiredFiles {
+		filePath := filepath.Join("asset", "sprites", fileName)
 
-			fileCfg, err := pkger.Open(filename)
-			if err != nil {
-				return err
-			}
-			defer fileCfg.Close()
-
-			cfg, err := png.DecodeConfig(fileCfg)
-			if err != nil {
-				return err
-			}
-
-			images[info.Name()] = img
-			cfgs[info.Name()] = cfg
+		fileBytes, err := readFile(filePath)
+		if err != nil {
+			return sprites, err
 		}
 
-		return nil
-	})
+		img, _, err := image.Decode(bytes.NewReader(fileBytes))
+		if err != nil {
+			return sprites, err
+		}
 
-	if err != nil {
-		return sprites, err
+		fileCfg, err := readFile(filePath)
+		if err != nil {
+			return sprites, err
+		}
+
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(fileCfg))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		images[fileName] = img
+		cfgs[fileName] = cfg
 	}
 
 	sprites["big_demon_idle"] = Frames{
