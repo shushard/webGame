@@ -141,7 +141,7 @@ func init() {
 func main() {
 	go world.Evolve()
 
-	host := getEnv("HOST", "localhost")
+	host := getEnv("HOST", "shushard.github.io")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 

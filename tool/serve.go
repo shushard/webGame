@@ -28,7 +28,7 @@ const reloadScript = `
 </script>
 `
 
-const defaultAddr = "localhost:3000"
+const defaultAddr = "shushard.github.io:3000"
 
 var waitCh = make(chan struct{})
 
@@ -126,7 +126,7 @@ func serve(args []string) error {
 
 	// Open browser if possible.
 	if !*noOpen {
-		u := "http://" + *addr
+		u := "https://" + *addr
 
 		ok := func() bool {
 			var err error
