@@ -74,7 +74,7 @@ func (g *Game) Draw(screen *e.Image) {
 
 	frame++
 
-	sprites := []Sprite{}
+	var sprites []Sprite
 	for _, unit := range world.Units {
 		sprites = append(sprites, Sprite{
 			Frames: frames[unit.Skin+"_"+unit.Action].Frames,
