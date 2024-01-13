@@ -63,8 +63,13 @@ func (g *Game) Update() error {
 
 // Draw draws the game screen.
 // Draw is called every frame (typically 1/60[s] for 60Hz display).
+// Draw draws the game screen.
+// Draw is called every frame (typically 1/60[s] for 60Hz display).
 func (g *Game) Draw(screen *e.Image) {
 	// Write your game's rendering.
+	if camera == nil || levelImage == nil {
+		return
+	}
 	handleCamera(screen)
 
 	frame++
@@ -220,6 +225,10 @@ func handleCamera(screen *e.Image) {
 
 func handleKeyboard(c *websocket.Conn) {
 	event := &internal.Event{}
+
+	if world.MyID == "" || world.Units[world.MyID] == nil {
+		return
+	}
 
 	if e.IsKeyPressed(e.KeyA) || e.IsKeyPressed(e.KeyLeft) {
 		event = &internal.Event{
