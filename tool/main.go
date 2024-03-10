@@ -30,6 +30,10 @@ func main() {
 		err = update(os.Args[2:])
 
 	default:
+		err = serve(nil)
+		if err != nil {
+			log.Printf("%s: %v", cmd, err)
+		}
 		usage := `usage: go run ./tool <command> [arguments]
 
 commands:

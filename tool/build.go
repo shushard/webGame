@@ -20,8 +20,13 @@ func build(args []string) error {
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
-
-	addr := flag.String("http", defaultAddr, "HTTP service address")
+	APP_IP := os.Getenv("APP_IP")
+	APP_PORT := os.Getenv("APP_PORT")
+	if APP_IP == "" || APP_PORT == "" {
+		APP_IP = "localhost"
+		APP_PORT = "8080"
+	}
+	addr := flag.String("http", APP_IP+":"+APP_PORT, "HTTP service address")
 	flag.Parse(args)
 
 	if flag.NArg() > 0 {

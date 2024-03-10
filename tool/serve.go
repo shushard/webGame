@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -28,8 +29,6 @@ const reloadScript = `
 </script>
 `
 
-const defaultAddr = "localhost:3000"
-
 var waitCh = make(chan struct{})
 
 var world *engine.World
@@ -50,8 +49,14 @@ func serve(args []string) error {
 		os.Exit(2)
 	}
 
+	APP_IP := os.Getenv("APP_IP")
+	APP_PORT := os.Getenv("APP_PORT")
+	if APP_IP == "" || APP_PORT == "" {
+		APP_IP = "localhost"
+		APP_PORT = "8080"
+	}
 	delay := flag.Int("delay", 0, "Delay for displaying a loading UI")
-	addr := flag.String("http", defaultAddr, "HTTP service address")
+	addr := flag.String("http", APP_IP+":"+APP_PORT, "HTTP service address")
 	allowOrigin := flag.String("allow-origin", "*", "Allowed origin for CORS requests")
 	noOpen := flag.Bool("no-open", false, "Do not open browser automatically")
 	flag.Parse(args)
@@ -65,6 +70,24 @@ func serve(args []string) error {
 	go hub.run()
 	// Register handler
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Received request: %s %s", r.Method, r.URL.Path)
+		if r.TLS != nil {
+			state := r.TLS
+			if !state.HandshakeComplete {
+				log.Println("TLS Handshake failed")
+			} else {
+				log.Println("TLS Handshake succeeded")
+				log.Println("Cipher Suite:", tls.CipherSuiteName(state.CipherSuite))
+				for _, cert := range state.PeerCertificates {
+					log.Println("Subject Common Name:", cert.Subject.CommonName)
+					log.Println("Issuer Common Name:", cert.Issuer.CommonName)
+					log.Println("Not Before:", cert.NotBefore)
+					log.Println("Not After:", cert.NotAfter)
+				}
+			}
+		} else {
+			log.Println("Not a TLS connection")
+		}
 
 		// Handle special paths
 		switch r.URL.Path {
@@ -126,7 +149,7 @@ func serve(args []string) error {
 
 	// Open browser if possible.
 	if !*noOpen {
-		u := "http://" + *addr
+		u := "https://" + *addr
 
 		ok := func() bool {
 			var err error
@@ -154,7 +177,10 @@ func serve(args []string) error {
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(hub, world, w, r)
 	})
-	return http.ListenAndServe(*addr, nil)
+
+	return http.ListenAndServe(
+		*addr,
+		nil)
 }
 
 // convertPath converts a path of a URL into a file path on the disk.
