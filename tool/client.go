@@ -148,7 +148,12 @@ func serveWs(hub *Hub, world *engine.World, w http.ResponseWriter, r *http.Reque
 		//todo: remove unit
 		log.Println(err)
 	}
-	err = conn.Write(context.Background(), websocket.MessageBinary, message)
+
+	// Create a new context with a timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err = conn.Write(ctx, websocket.MessageBinary, message)
 	if err != nil {
 		log.Println(err)
 	}

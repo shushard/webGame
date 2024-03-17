@@ -13,6 +13,7 @@ import (
 )
 
 func build(args []string) error {
+
 	// Parse flags
 	flag := flag.NewFlagSet("build", flag.ExitOnError)
 	flag.Usage = func() {
@@ -20,12 +21,9 @@ func build(args []string) error {
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
-	APP_IP := os.Getenv("APP_IP")
-	APP_PORT := os.Getenv("APP_PORT")
-	if APP_IP == "" || APP_PORT == "" {
-		APP_IP = "localhost"
-		APP_PORT = "8080"
-	}
+	APP_IP := getEnv("APP_IP", "127.0.4.22")
+	APP_PORT := getEnv("APP_PORT", "53803")
+
 	addr := flag.String("http", APP_IP+":"+APP_PORT, "HTTP service address")
 	flag.Parse(args)
 

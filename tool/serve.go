@@ -2,15 +2,12 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -49,16 +46,12 @@ func serve(args []string) error {
 		os.Exit(2)
 	}
 
-	APP_IP := os.Getenv("APP_IP")
-	APP_PORT := os.Getenv("APP_PORT")
-	if APP_IP == "" || APP_PORT == "" {
-		APP_IP = "localhost"
-		APP_PORT = "8080"
-	}
+	APP_IP := getEnv("APP_IP", "127.0.4.22")
+	APP_PORT := getEnv("APP_PORT", "53803")
+
 	delay := flag.Int("delay", 0, "Delay for displaying a loading UI")
 	addr := flag.String("http", APP_IP+":"+APP_PORT, "HTTP service address")
 	allowOrigin := flag.String("allow-origin", "*", "Allowed origin for CORS requests")
-	noOpen := flag.Bool("no-open", false, "Do not open browser automatically")
 	flag.Parse(args)
 
 	if flag.NArg() > 0 {
@@ -70,24 +63,6 @@ func serve(args []string) error {
 	go hub.run()
 	// Register handler
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received request: %s %s", r.Method, r.URL.Path)
-		if r.TLS != nil {
-			state := r.TLS
-			if !state.HandshakeComplete {
-				log.Println("TLS Handshake failed")
-			} else {
-				log.Println("TLS Handshake succeeded")
-				log.Println("Cipher Suite:", tls.CipherSuiteName(state.CipherSuite))
-				for _, cert := range state.PeerCertificates {
-					log.Println("Subject Common Name:", cert.Subject.CommonName)
-					log.Println("Issuer Common Name:", cert.Issuer.CommonName)
-					log.Println("Not Before:", cert.NotBefore)
-					log.Println("Not After:", cert.NotAfter)
-				}
-			}
-		} else {
-			log.Println("Not a TLS connection")
-		}
 
 		// Handle special paths
 		switch r.URL.Path {
@@ -148,39 +123,11 @@ func serve(args []string) error {
 	log.Println("Listening on", *addr)
 
 	// Open browser if possible.
-	if !*noOpen {
-		u := "https://" + *addr
 
-		ok := func() bool {
-			var err error
-			switch runtime.GOOS {
-			case "windows":
-				err = exec.Command("rundll32", "url.dll,FileProtocolHandler", u).Start()
-			case "darwin":
-				err = exec.Command("open", u).Start()
-			case "linux":
-				err = exec.Command("xdg-open", u).Start()
-			default:
-				return false
-			}
-
-			if err != nil {
-				return false
-			}
-			return true
-		}()
-
-		if !ok {
-			log.Printf("Please open %s on your browser.\n", u)
-		}
-	}
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(hub, world, w, r)
 	})
-
-	return http.ListenAndServe(
-		*addr,
-		nil)
+	return http.ListenAndServe(*addr, nil)
 }
 
 // convertPath converts a path of a URL into a file path on the disk.
@@ -217,4 +164,11 @@ func notifyForWait(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
 }

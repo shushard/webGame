@@ -52,56 +52,6 @@ type Game struct {
 	Conn *websocket.Conn
 }
 
-func main() {
-	go world.Evolve()
-
-	host := getEnv("HOST", "webgame.na4u.ru")
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
-	c, _, err := websocket.Dial(ctx, "wss://"+host+":443/ws", nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer c.Close(websocket.StatusInternalError, "the sky is falling")
-
-	go func(c *websocket.Conn) {
-		defer c.Close(websocket.StatusInternalError, "the sky is falling")
-
-		for {
-			_, message, err := c.Read(context.Background())
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			event := &internal.Event{}
-			err = proto.Unmarshal(message, event)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			world.HandleEvent(event)
-
-			if event.Type == internal.Event_type_connect {
-				me := world.Units[world.MyID]
-				camera = &Camera{
-					X:       me.X,
-					Y:       me.Y,
-					Padding: 30,
-				}
-			}
-		}
-	}(c)
-
-	e.SetRunnableOnUnfocused(true)
-	e.SetWindowSize(config.width, config.height)
-	e.SetWindowTitle(config.title)
-	game := &Game{Conn: c}
-	if err := e.RunGame(game); err != nil {
-		log.Fatal(err)
-	}
-}
-
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (g *Game) Update() error {
@@ -184,6 +134,57 @@ func init() {
 
 	levelImage, err = prepareLevelImage()
 	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func main() {
+	go world.Evolve()
+
+	APP_IP := getEnv("APP_IP", "webgame.na4u.ru")
+	APP_PORT := getEnv("APP_PORT", "443")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	c, _, err := websocket.Dial(ctx, fmt.Sprintf("wss://%s:%s/ws", APP_IP, APP_PORT), nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer c.Close(websocket.StatusInternalError, "the sky is falling")
+
+	go func(c *websocket.Conn) {
+		defer c.Close(websocket.StatusInternalError, "the sky is falling")
+
+		for {
+			_, message, err := c.Read(context.Background())
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			event := &internal.Event{}
+			err = proto.Unmarshal(message, event)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			world.HandleEvent(event)
+
+			if event.Type == internal.Event_type_connect {
+				me := world.Units[world.MyID]
+				camera = &Camera{
+					X:       me.X,
+					Y:       me.Y,
+					Padding: 30,
+				}
+			}
+		}
+	}(c)
+
+	e.SetRunnableOnUnfocused(true)
+	e.SetWindowSize(config.width, config.height)
+	e.SetWindowTitle(config.title)
+	game := &Game{Conn: c}
+	if err := e.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 }
